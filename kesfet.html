@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Akış Sayfası</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f0f2f5;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .container {
+            width: 100%;
+            height: 100%;
+            background-color: white;
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+        }
+
+        /* Sayfa yenile butonu */
+        .refresh-button {
+            margin-bottom: 10px;
+            padding: 20px;
+            background-color: #075E54;
+            color: white;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 20px;
+            transition: background-color 0.3s;
+            width: 100%;
+        }
+
+        .refresh-button:hover {
+            background-color: #054E45;
+        }
+
+        /* Resim yükleme bölümü */
+        .image-upload {
+            margin-bottom: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+        }
+
+        /* Resim akışı */
+        .image-feed {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+            padding: 10px;
+            max-height: 70vh; /* Yüksekliği sınırlandırarak kaydırılabilir yap */
+        }
+
+        .image-post {
+            margin-bottom: 20px;
+            border: 1px solid #ccc;
+            border-radius: 10px;
+            padding: 10px;
+            background-color: #e5ddd5;
+            position: relative;
+        }
+
+        .image-post img {
+            width: 80%; /* Resmin genişliğini yüzde 80'e ayarla */
+            max-width: 600px; /* Maksimum genişlik 600px */
+            height: auto; /* Yüksekliği oranına göre otomatik ayarla */
+            border-radius: 10px;
+            margin: 0 auto; /* Resmi ortala */
+            display: block; /* Block seviyesinde yaparak ortalanmasını sağla */
+        }
+
+        .delete-button {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            padding: 10px;
+            background-color: red;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        /* Kullanıcı ID'si ve açıklama */
+        .user-info {
+            margin-top: 10px;
+            font-size: 16px;
+            color: #333;
+            text-align: left;
+        }
+
+        /* Kullanıcı ID ve açıklama arasındaki boşluk */
+        .user-info strong {
+            display: block; /* Kullanıcı ID'si için ayrı bir satır */
+            margin-bottom: 15px; /* Kullanıcı ID'si ve açıklama arasında 15px boşluk bırakır */
+            font-size: 14px; /* Kullanıcı ID boyutunu küçült */
+        }
+
+        .user-info span {
+            display: block; /* Açıklama için ayrı bir satırda görünmesini sağlar */
+            margin-top: 30px; /* Açıklama için 30px boşluk bırakır */
+            margin-bottom: 15px; /* Açıklama altında 15px boşluk bırakır */
+        }
+
+        /* Resim yükleme butonu */
+        #uploadButton, #imageInput {
+            padding: 20px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 20px;
+            transition: background-color 0.3s;
+            width: 100%;
+            margin-top: 10px;
+        }
+
+        #uploadButton:hover, #imageInput:hover {
+            background-color: #0056b3;
+        }
+
+        /* Gizli div */
+        .hidden {
+            display: none;
+        }
+
+        /* Bilgi butonu */
+        .info-button {
+            display: inline-block;
+            padding: 10px 20px;
+            background-color: #007bff;
+            color: white;
+            text-decoration: none;
+            border-radius: 10px;
+            margin-top: 10px;
+            transition: background-color 0.3s;
+            font-size: 16px;
+        }
+
+        .info-button:hover {
+            background-color: #0056b3;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <button class="refresh-button" id="refreshButton">Sayfayı Yenile</button>
+
+        <!-- Resim yükleme -->
+        <div class="image-upload">
+            <input type="file" id="imageInput" accept="image/*">
+            <button id="uploadButton">Dosya Yükle</button>
+            <a href="chatistan.html" target="_blank" class="info-button">Sohbet</a>
+        </div>
+
+        <!-- Resim akışı -->
+        <div class="image-feed" id="imageFeed"></div>
+    </div>
+
+    <div class="hidden">
+        <script type="module">
+            import { initializeApp } from "https://www.gstatic.com/firebasejs/9.6.10/firebase-app.js";
+            import { getAuth, onAuthStateChanged, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/9.6.10/firebase-auth.js";
+            import { getFirestore, collection, addDoc, onSnapshot, doc, deleteDoc } from "https://www.gstatic.com/firebasejs/9.6.10/firebase-firestore.js";
+            import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/9.6.10/firebase-storage.js";
+
+            const firebaseConfig = {
+                apiKey: "AIzaSyArSsQVVtDFmvRdWiaDttMIA5u0ovgHLoY",
+                authDomain: "chatsistan.firebaseapp.com",
+                projectId: "chatsistan",
+                storageBucket: "chatsistan.appspot.com",
+                messagingSenderId: "841318423249",
+                appId: "1:841318423249:web:823bcfb2c8afd3a81b43f0",
+                measurementId: "G-W1YVH8B4G9"
+            };
+
+            const app = initializeApp(firebaseConfig);
+            const auth = getAuth();
+            const db = getFirestore(app);
+            const storage = getStorage(app);
+
+            // Kullanıcı oturumunu izleme
+            onAuthStateChanged(auth, (user) => {
+                if (user) {
+                    loadImages(); // Resimleri yükle
+                } else {
+                    const email = prompt("E-posta girin:");
+                    const password = prompt("Şifre girin:");
+                    signInWithEmailAndPassword(auth, email, password)
+                        .then((userCredential) => {
+                            console.log('Giriş başarılı: ', userCredential.user);
+                            loadImages(); // Giriş yaptıktan sonra resimleri yükle
+                        })
+                        .catch((error) => {
+                            console.error('Giriş hatası: ', error.message);
+                        });
+                }
+            });
+
+            // Resim yükleme işlemi
+            const uploadButton = document.getElementById('uploadButton');
+            uploadButton.addEventListener('click', async () => {
+                const imageInput = document.getElementById('imageInput');
+                const file = imageInput.files[0];
+                if (file) {
+                    const shouldAddDescription = confirm("Resminiz için bir açıklama eklemek ister misiniz?");
+                    const description = shouldAddDescription ? prompt("Açıklamanızı girin:") : '';
+
+                    const storageRef = ref(storage, `images/${file.name}`);
+                    await uploadBytes(storageRef, file);
+                    const downloadURL = await getDownloadURL(storageRef);
+
+                    // Firestore'da resmi kaydet
+                    const docRef = await addDoc(collection(db, "images"), {
+                        userId: auth.currentUser.uid,
+                        imageUrl: downloadURL,
+                        description: description,
+                        timestamp: new Date()
+                    });
+
+                    document.getElementById('imageInput').value = ''; // Giriş kutusunu temizle
+                    loadImages(); // Resimleri yenile
+                } else {
+                    console.log("Bir resim yüklemeniz gerekiyor!");
+                }
+            });
+
+            // Resimleri yükle
+            function loadImages() {
+                const imageFeed = document.getElementById('imageFeed');
+                onSnapshot(collection(db, "images"), (snapshot) => {
+                    imageFeed.innerHTML = ''; // Önceki resimleri temizle
+                    snapshot.forEach((doc) => {
+                        const imageData = doc.data();
+                        const postDiv = document.createElement('div');
+                        postDiv.classList.add('image-post');
+
+                        // Resim
+                        const img = document.createElement('img');
+                        img.src = imageData.imageUrl;
+                        postDiv.appendChild(img);
+
+                        // Kullanıcı ID'si ve açıklama
+                        const userInfoDiv = document.createElement('div');
+                        userInfoDiv.classList.add('user-info');
+                        userInfoDiv.innerHTML = `<strong>Kullanıcı ID: ${imageData.userId}</strong><span>${imageData.description}</span>`;
+                        postDiv.appendChild(userInfoDiv);
+
+                        // Silme butonu
+                        if (imageData.userId === auth.currentUser.uid) {
+                            const deleteButton = document.createElement('button');
+                            deleteButton.classList.add('delete-button');
+                            deleteButton.textContent = 'Sil';
+                            deleteButton.onclick = () => {
+                                deleteDoc(doc.ref).then(() => {
+                                    console.log('Resim silindi');
+                                }).catch((error) => {
+                                    console.error('Silme hatası: ', error);
+                                });
+                            };
+                            postDiv.appendChild(deleteButton);
+                        }
+
+                        imageFeed.appendChild(postDiv);
+                    });
+                });
+            }
+
+            // Sayfa yenile butonu
+            document.getElementById('refreshButton').onclick = () => {
+                loadImages(); // Resimleri yenile
+            };
+        </script>
+    </div>
+
+</body>
+</html>
